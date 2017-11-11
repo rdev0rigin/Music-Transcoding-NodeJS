@@ -10,3 +10,6 @@ build/*
 .idea/
 build/
 dist/
+certificate.pem
+key.pem
+_local.credentials.ts

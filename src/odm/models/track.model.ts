@@ -8,7 +8,6 @@ export interface TrackInfo {
 	slug: string;
 	route: string;
 	mode: string;
-	imgURL: string;
 }
 
 export interface TrackStats {
@@ -20,23 +19,23 @@ export interface TrackStats {
 }
 
 export interface TrackModel extends TrackInfo, TrackStats {
-	track_id: string;
-	mp3Data: string;
-	mp4Data: string;
-
+	id: string;
+	mp3Data: Buffer;
+	mp4Data: Buffer;
+	imgData: Buffer;
+	imgURL: string;
+	soundS3URL: string;
+	videoS3URL: string;
 }
 
 export const TrackDataSchema = new Schema({
+	id: String,
 	mp3Data: Buffer,
 	mp4Data: Buffer,
-	imgURL: String,
 	imgData: Buffer,
-	soundS3URL: String,
-	videoS3URL: String,
-});
-
-export const TrackInfoSchema = new Schema({
-	track_id: String,
+	imgURL: String,
+	soundURL: String,
+	videoURL: String,
 	slug: String,
 	mode: String,
 	title: String,
@@ -44,8 +43,7 @@ export const TrackInfoSchema = new Schema({
 	route: String,
 });
 
-export const TrackStatsSchema = new Schema({
-	track_id: String,
+export const TrackStats = new Schema({
 	likes: Number,
 	downloads: Number,
 	shares: Number,

@@ -1,4 +1,4 @@
-import * as http from 'http';
+import * as https from 'https';
 import * as express from 'express';
 import dbConfig = require('./odm/db.config');
 import {storeManager} from './managers/store.manager';
@@ -6,12 +6,15 @@ import {publicEndpoints} from './endpoints/public.endpoint';
 import Socket = SocketIO.Socket;
 import {LoginManager} from './auth/login.manager';
 import {sessionEndpoints} from './endpoints/session.endpoint';
+import * as fs from 'fs';
 
 export class BackendServices {
 	private app: express.Application = express();
-	private server: http.Server;
+	private server: https.Server;
 	private port: number = 2820;
-	private socket: SocketIO.Server = require('socket.io')(2820);
+	private socket: SocketIO.Server = require('socket.io')(2820, {
+
+	});
 	private clients: {}[] = [];
 	private storeManager: any;
 	private loginManager: LoginManager;
@@ -42,7 +45,11 @@ export class BackendServices {
 	}
 
 	private init(): void {
-		this.server = http.createServer(this.app);
+		this.server = https.createServer({
+
+			cert: fs.readFileSync('/Users/raven/dev0/dcomp-backend/src/certificate.pem'),
+			key: fs.readFileSync('/Users/raven/dev0/dcomp-backend/src/key.pem')
+		}, this.app);
 		this.server.listen(this.port, 'localhost');
 		this.storeManager = storeManager();
 		this.loginManager = new LoginManager();

@@ -8,6 +8,7 @@ export function publicEndpoints(socket: any) {
     socket.on('0AUTH2_TWITTER::GET_URL', () => {
 
     });
+
 	socket.on('GET_SONG_BY_PROP', async (payload: {prop: any, sessionId: string}) => {
 		console.log('get song', payload);
 		const track = await storeM.getTrackByProp(payload.prop);
@@ -19,12 +20,23 @@ export function publicEndpoints(socket: any) {
 	});
 
 	socket.on('GET_ALL_MUSIC_DETAILS', async (sessionId: string) => {
-		const info = await storeM.getAllSongsInfo();
+		const info = await storeM.getAllSoundsInfo();
 		if (info) {
 		console.log('get info', info, sessionId);
 			socket.emit(`GET_ALL_MUSIC_DETAILS::CLIENT_${sessionId}`, {ok: true, ...info});
 		} else {
 			socket.emit(`GET_ALL_MUSIC_DETAILS::CLIENT_${sessionId}`, {ok: false, message: 'Failed to get track by prop.'});
+		}
+	});
+
+	socket.on('GET_ALL_SOUND_INFO', async (sessionId: string) => {
+		console.log('getting', sessionId);
+		const info = await storeM.getAllSoundsInfo();
+		if (info) {
+		console.log('get info', info, sessionId);
+			socket.emit(`GET_ALL_SOUND_INFO::CLIENT_${sessionId}`, {ok: true, payload: info});
+		} else {
+			socket.emit(`GET_ALL_SOUND_INFO::CLIENT_${sessionId}`, {ok: false, message: 'Failed to get track by prop.'});
 		}
 	});
 
@@ -38,12 +50,13 @@ export function publicEndpoints(socket: any) {
 	});
 
 	socket.on('LOGIN', async (payload: any) => {
-		const jwtResponse: any = await loginM.signInUser(payload.credentials, payload.sessionId);
-		console.log('jwt response', jwtResponse);
-		if (jwtResponse.ok) {
-			socket.emit(`LOGIN::CLIENT_${payload.sessionId}`, {ok: true, jwt: jwtResponse.jwt});
+		const rSResponse:
+			any = await loginM.signInUser(payload.credentials, payload.sessionId);
+		console.log('jwt response', rSResponse);
+		if (rSResponse.ok) {
+			socket.emit(`LOGIN::CLIENT_${payload.sessionId}`, rSResponse);
 		} else {
-			socket.emit(`LOGIN::CLIENT_${payload.sessionId}`, {ok: false, message: jwtResponse.message});
+			socket.emit(`LOGIN::CLIENT_${payload.sessionId}`, rSResponse);
 		}
 	});
 

@@ -1,4 +1,3 @@
-
 import * as mongoose from 'mongoose';
 import {TrackInfo} from './track.model';
 

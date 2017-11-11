@@ -2,28 +2,51 @@ import {TrackDataSchema} from '../odm/models/track.model';
 import mongoose = require('mongoose');
 import {StoreManifest} from '../odm/models/manifest.model';
 import {Document} from 'mongoose';
-
+import {SoundInfoModel, SoundInfoSchema} from '../odm/models/sound-info.model';
+import {TrackDataBufferSchema} from '../odm/models/track-data.model';
 var Track = mongoose.model('Track', TrackDataSchema);
 var Manifest = mongoose.model('Manifest', StoreManifest);
+var SoundInfo = mongoose.model('SoundInfo', SoundInfoSchema);
+var TrackData = mongoose.model('TrackData', TrackDataBufferSchema);
+
+
+export interface TrackForm {
+	title: string;
+	key: string;
+	route: string;
+	slug: string;
+	mode: string;
+}
+
+export interface TrackFiles {
+	mp3Data: string;
+	mp4Data: string;
+	imgData: string;
+	imgURL: string;
+	soundURL: string;
+	videoURL: string;
+}
 
 export interface StoreManager {
 	getTrackByProp(prop: {}): Promise<Document | null>;
 
-	getAllSongsInfo(): Promise<Document[] | undefined>;
+	getAllSoundsInfo(): Promise<Document[] | undefined>;
 
 	getStreamById(): any;
 
 	createWith(payload: any, type: string): Promise<any>;
 
-	registerNewTrack(payload: any): Promise<Document>;
+	registerNewSound(formData: SoundInfoModel): Promise<Document>;
+
+	registerNewTrack(formData: TrackForm, fileData: TrackFiles): Promise<Document>;
 
 	updateTrackRecord(payload: any, prop: { [key: string]: any }): Promise<Document | null | undefined>
 
 	updateByProp(payload: any, prop: { [key: string]: any }, type: string): Promise<any>;
 
-	getWholeFile(prop: { [key: string]:string}, type: string): Promise<any>;
+	getWholeFile(prop: {[key: string]:string}, type: string): Promise<any>;
 
-
+	uploadTrackFile(trackId: string, type: string, encoding: string, file: any ): Promise<any>
 }
 
 export function storeManager(): StoreManager {
@@ -37,8 +60,8 @@ export function storeManager(): StoreManager {
 		getTrackByProp: async (prop: { [key: string]: any }) => {
 			return await Track.findOne(prop);
 		},
-		getAllSongsInfo: async () => {
-			return await Manifest.find();
+		getAllSoundsInfo: async () => {
+			return await SoundInfo.find();
 		},
 		getStreamById: () => {
 			//  const { Writable } = require('stream');
@@ -52,7 +75,6 @@ export function storeManager(): StoreManager {
 			// });
 			// const readable = new ReadableStream()
 		},
-
 		createWith: async (payload: any, type: string): Promise<Document[] | void> => {
 			const model = getModel(type);
 			if (!model){
@@ -60,21 +82,27 @@ export function storeManager(): StoreManager {
 			}
 			return await model.create(payload)
 				.then(value => {
-
-			}).catch(err => {console.log('store error', err)})
+			})
+				.catch(err => {console.log('store error', err)})
 		},
-
-		registerNewTrack: async (payload: any) => {
-			const {mp3Data, mp4Data, imgURL, soundS3URL, videoS3URL} = payload;
-			if (mp3Data) {
-
-			}
+		registerNewSound: async (formData: SoundInfoModel): Promise<Document> => {
+			return await SoundInfo.create(formData);
+		},
+		registerNewTrack: async (formData: TrackForm, fileData: TrackFiles): Promise<Document> => {
+			const { title, key, route, slug, mode }: any = formData;
+			const { mp3Data, mp4Data, imgData, soundURL, videoURL, imgURL }: any = fileData;
 			return await Track.create({
-				mp3Data: mp3Data,
-				mp4Data: mp4Data,
-				imgURL: imgURL,
-				soundS3URL: soundS3URL,
-				videoS3URL: videoS3URL
+				title: title,
+				key: key,
+				route: route,
+				slug: slug,
+				mode: mode,
+				mp3Data: mp3Data || '',
+				mp4Data: mp4Data || '',
+				imgData: imgData || '',
+				imgURL: imgURL || '',
+				soundURL: soundURL || '',
+				videoURL: videoURL || '',
 			})
 		},
 		updateTrackRecord: async (payload: any, prop: {[key: string]: any}) => {
@@ -84,7 +112,7 @@ export function storeManager(): StoreManager {
 				return void 0;
 			}
 		},
-		updateByProp: async (payload: any, prop: { [key: string]: any }, type: string) => {
+		updateByProp: async (payload: any, prop: {[key: string]: any }, type: string) => {
 			const model = getModel(type);
 			if (!model) {
 				return void 0;
@@ -97,8 +125,44 @@ export function storeManager(): StoreManager {
 				return void 0;
 			}
 			return await model.findOne(prop)
-				.catch(err => {console.log('store error', err)});
-		}
+				.catch(err => {
+					console.log('store error', err)
+			});
+		},
+		uploadTrackFile: async (trackId: string, type: string, encoding: string, file: any): Promise<any> => {
+			console.log(file);
+			let values: any = {
+				track_id: trackId
+			};
+			switch(type){
+				case'VIDEO':
+					values = {
+						...values,
+						videoData: file,
+					};
+					break;
+				case'SOUND':
+					values = {
+						...values,
+						soundData: file,
+					};
+					break;
+				case'IMAGE':
+					values = {
+						...values,
+						imgData: file,
+					};
+					break;
+				default:
+					return {ok: false, message: 'No File Type Found'}
+			}
+			const ifTrack = await TrackData.findOne({track_id: trackId});
+			console.log('ifTrack', ifTrack);
+			if(ifTrack) {
+				return await ifTrack.update(values);
+			}
+			return await TrackData.create(values);
+		},
 	}
 }
 
@@ -113,112 +177,3 @@ function getModel(type: string) {
 			return null;
 	}
 }
-
-const store: StoreManager = storeManager();
-
-const data = JSON.stringify([{
-	graveSon: {
-		title: 'DComposeD',
-		id: '123',
-		key: 'graveSon',
-		slug: 'grave_son',
-		route: '/music/grave_son',
-		mp3URL: '//s3-us-west-2.amazonaws.com/elasticbeanstalk-us-west-2-176659737152/dcomposed-remaster-wip.m4a',
-		mp4URL: '/dcomp_wip.mp4',
-		imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/c_scale,h_820,q_54/v1509156983/dcomposed-album-art_mavbxv.jpg',
-		weight: 1,
-		mode: 'VIDEO',
-		likes: 31,
-		downloads: 29,
-		shares: 27,
-		plays: 153,
-	},
-},{
-	getSome: {
-		title: 'Grave Son',
-		id: '123',
-		key: 'getSome',
-		slug: 'get_some',
-		route: '/music/grave_son',
-		mp3URL: 'GetSOmeNom.m4a',
-		mp4URL: '/dcomp_wip.mp4',
-		imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-		weight: 1,
-		mode: 'VIDEO',
-		likes: 31,
-		downloads: 29,
-		shares: 27,
-		plays: 153,
-	},
-},{
-	makeSome: {
-		title: 'Fitzpatrick',
-		id: '123',
-		key: 'fitzPatrick',
-		slug: 'fitz_patrick',
-		route: '/music/grave_son',
-		mp3URL: '//s3-us-west-2.amazonaws.com/elasticbeanstalk-us-west-2-176659737152/fitzpatrick.wav',
-		mp4URL: '/dcomp_wip.mp4',
-		imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-		weight: 1,
-		mode: 'VIDEO',
-		likes: 31,
-		downloads: 29,
-		shares: 27,
-		plays: 153,
-	},
-},{
-	ravenFun: {
-		title: 'Grave Son',
-		id: '123',
-		key: 'ravenFun',
-		slug: 'raven_fun',
-		route: '/music/grave_son',
-		mp3URL: 'GetSOmeNom.m4a',
-		mp4URL: '/dcomp_wip.mp4',
-		imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-		weight: 1,
-		mode: 'VIDEO',
-		likes: 31,
-		downloads: 29,
-		shares: 27,
-		plays: 153,
-	},
-},{
-	greaterSum: {
-		title: 'Grave Son',
-		id: '123',
-		key: 'greaterSum',
-		slug: 'greater_sum',
-		route: '/music/grave_son',
-		mp3URL: 'GetSOmeNom.m4a',
-		mp4URL: '/dcomp_wip.mp4',
-		imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-		weight: 1,
-		mode: 'VIDEO',
-		likes: 31,
-		downloads: 29,
-		shares: 27,
-		plays: 153,
-	},
-},{
-	lessThanOne: {
-		title: 'Grave Son',
-		id: '123',
-		key: 'lessThanOne',
-		slug: 'less_than_one',
-		route: '/music/grave_son',
-		mp3URL: 'GetSOmeNom.m4a',
-		mp4URL: '/dcomp_wip.mp4',
-		imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-		weight: 1,
-		mode: 'VIDEO',
-		likes: 31,
-		downloads: 29,
-		shares: 27,
-		plays: 153,
-	}
-}]);
-
-store.createWith({manifest:data}, 'MANIFEST')
-	.then(res => console.log('success', res));

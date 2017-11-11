@@ -25,6 +25,8 @@ export async function RESTRequest(verb: string, path: string, header?: {}){
 		});
 }
 
+
+
 // The request must include an Authorization header with the value of Basic <base64 encoded value from step 1>.
 // The request must include a Content-Type header with the value of application/x-www-form-urlencoded;charset=UTF-8.
 // The body of the request must be grant_type=client_credentials.

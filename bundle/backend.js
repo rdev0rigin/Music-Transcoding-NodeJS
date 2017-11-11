@@ -66,18 +66,19 @@
 
 	"use strict";
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var http = __webpack_require__(3);
+	var https = __webpack_require__(3);
 	var express = __webpack_require__(4);
 	var dbConfig = __webpack_require__(5);
 	var store_manager_1 = __webpack_require__(7);
-	var public_endpoint_1 = __webpack_require__(10);
-	var login_manager_1 = __webpack_require__(11);
-	var session_endpoint_1 = __webpack_require__(16);
+	var public_endpoint_1 = __webpack_require__(12);
+	var login_manager_1 = __webpack_require__(13);
+	var session_endpoint_1 = __webpack_require__(18);
+	var fs = __webpack_require__(19);
 	var BackendServices = /** @class */ (function () {
 	    function BackendServices() {
 	        this.app = express();
 	        this.port = 2820;
-	        this.socket = __webpack_require__(17)(2820);
+	        this.socket = __webpack_require__(20)(2820, {});
 	        this.clients = [];
 	        this.init();
 	        this.setupWS();
@@ -102,7 +103,10 @@
 	        });
 	    };
 	    BackendServices.prototype.init = function () {
-	        this.server = http.createServer(this.app);
+	        this.server = https.createServer({
+	            cert: fs.readFileSync('/Users/raven/dev0/dcomp-backend/src/certificate.pem'),
+	            key: fs.readFileSync('/Users/raven/dev0/dcomp-backend/src/key.pem')
+	        }, this.app);
 	        this.server.listen(this.port, 'localhost');
 	        this.storeManager = store_manager_1.storeManager();
 	        this.loginManager = new login_manager_1.LoginManager();
@@ -117,7 +121,7 @@
 /* 3 */
 /***/ (function(module, exports) {
 
-	module.exports = require("http");
+	module.exports = require("https");
 
 /***/ }),
 /* 4 */
@@ -154,6 +158,14 @@
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
+	var __assign = (this && this.__assign) || Object.assign || function(t) {
+	    for (var s, i = 1, n = arguments.length; i < n; i++) {
+	        s = arguments[i];
+	        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+	            t[p] = s[p];
+	    }
+	    return t;
+	};
 	var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
 	    return new (P || (P = Promise))(function (resolve, reject) {
 	        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -193,11 +205,24 @@
 	var track_model_1 = __webpack_require__(8);
 	var mongoose = __webpack_require__(6);
 	var manifest_model_1 = __webpack_require__(9);
+	var sound_info_model_1 = __webpack_require__(10);
+	var track_data_model_1 = __webpack_require__(11);
 	var Track = mongoose.model('Track', track_model_1.TrackDataSchema);
 	var Manifest = mongoose.model('Manifest', manifest_model_1.StoreManifest);
+	var SoundInfo = mongoose.model('SoundInfo', sound_info_model_1.SoundInfoSchema);
+	var TrackData = mongoose.model('TrackData', track_data_model_1.TrackDataBufferSchema);
 	function storeManager() {
 	    var _this = this;
 	    // update resource index
+	    function uploadFile(fileProp, id) {
+	        return __awaiter(this, void 0, void 0, function () {
+	            var key;
+	            return __generator(this, function (_a) {
+	                key = Object.keys(fileProp)[0];
+	                return [2 /*return*/, new Buffer(fileProp[key], 'base64')];
+	            });
+	        });
+	    }
 	    return {
 	        getTrackByProp: function (prop) { return __awaiter(_this, void 0, void 0, function () {
 	            return __generator(this, function (_a) {
@@ -207,10 +232,10 @@
 	                }
 	            });
 	        }); },
-	        getAllSongsInfo: function () { return __awaiter(_this, void 0, void 0, function () {
+	        getAllSoundsInfo: function () { return __awaiter(_this, void 0, void 0, function () {
 	            return __generator(this, function (_a) {
 	                switch (_a.label) {
-	                    case 0: return [4 /*yield*/, Manifest.find()];
+	                    case 0: return [4 /*yield*/, SoundInfo.find()];
 	                    case 1: return [2 /*return*/, _a.sent()];
 	                }
 	            });
@@ -238,23 +263,39 @@
 	                        }
 	                        return [4 /*yield*/, model.create(payload)
 	                                .then(function (value) {
-	                            }).catch(function (err) { console.log('store error', err); })];
+	                            })
+	                                .catch(function (err) { console.log('store error', err); })];
 	                    case 1: return [2 /*return*/, _a.sent()];
 	                }
 	            });
 	        }); },
-	        registerNewTrack: function (payload) { return __awaiter(_this, void 0, void 0, function () {
-	            var mp3Data, mp4Data, imgURL, soundS3URL, videoS3URL;
+	        registerNewSound: function (formData) { return __awaiter(_this, void 0, void 0, function () {
+	            return __generator(this, function (_a) {
+	                switch (_a.label) {
+	                    case 0: return [4 /*yield*/, SoundInfo.create(formData)];
+	                    case 1: return [2 /*return*/, _a.sent()];
+	                }
+	            });
+	        }); },
+	        registerNewTrack: function (formData, fileData) { return __awaiter(_this, void 0, void 0, function () {
+	            var title, key, route, slug, mode, mp3Data, mp4Data, imgData, soundURL, videoURL, imgURL;
 	            return __generator(this, function (_a) {
 	                switch (_a.label) {
 	                    case 0:
-	                        mp3Data = payload.mp3Data, mp4Data = payload.mp4Data, imgURL = payload.imgURL, soundS3URL = payload.soundS3URL, videoS3URL = payload.videoS3URL;
+	                        title = formData.title, key = formData.key, route = formData.route, slug = formData.slug, mode = formData.mode;
+	                        mp3Data = fileData.mp3Data, mp4Data = fileData.mp4Data, imgData = fileData.imgData, soundURL = fileData.soundURL, videoURL = fileData.videoURL, imgURL = fileData.imgURL;
 	                        return [4 /*yield*/, Track.create({
-	                                mp3Data: mp3Data,
-	                                mp4Data: mp4Data,
-	                                imgURL: imgURL,
-	                                soundS3URL: soundS3URL,
-	                                videoS3URL: videoS3URL
+	                                title: title,
+	                                key: key,
+	                                route: route,
+	                                slug: slug,
+	                                mode: mode,
+	                                mp3Data: mp3Data || '',
+	                                mp4Data: mp4Data || '',
+	                                imgData: imgData || '',
+	                                imgURL: imgURL || '',
+	                                soundURL: soundURL || '',
+	                                videoURL: videoURL || '',
 	                            })];
 	                    case 1: return [2 /*return*/, _a.sent()];
 	                }
@@ -296,11 +337,47 @@
 	                            return [2 /*return*/, void 0];
 	                        }
 	                        return [4 /*yield*/, model.findOne(prop)
-	                                .catch(function (err) { console.log('store error', err); })];
+	                                .catch(function (err) {
+	                                console.log('store error', err);
+	                            })];
 	                    case 1: return [2 /*return*/, _a.sent()];
 	                }
 	            });
-	        }); }
+	        }); },
+	        uploadTrackFile: function (trackId, type, encoding, file) { return __awaiter(_this, void 0, void 0, function () {
+	            var values, ifTrack;
+	            return __generator(this, function (_a) {
+	                switch (_a.label) {
+	                    case 0:
+	                        console.log(file);
+	                        values = {
+	                            track_id: trackId
+	                        };
+	                        switch (type) {
+	                            case 'VIDEO':
+	                                values = __assign({}, values, { videoData: file });
+	                                break;
+	                            case 'SOUND':
+	                                values = __assign({}, values, { soundData: file });
+	                                break;
+	                            case 'IMAGE':
+	                                values = __assign({}, values, { imgData: file });
+	                                break;
+	                            default:
+	                                return [2 /*return*/, { ok: false, message: 'No File Type Found' }];
+	                        }
+	                        return [4 /*yield*/, TrackData.findOne({ track_id: trackId })];
+	                    case 1:
+	                        ifTrack = _a.sent();
+	                        console.log('ifTrack', ifTrack);
+	                        if (!ifTrack) return [3 /*break*/, 3];
+	                        return [4 /*yield*/, ifTrack.update(values)];
+	                    case 2: return [2 /*return*/, _a.sent()];
+	                    case 3: return [4 /*yield*/, TrackData.create(values)];
+	                    case 4: return [2 /*return*/, _a.sent()];
+	                }
+	            });
+	        }); },
 	    };
 	}
 	exports.storeManager = storeManager;
@@ -315,112 +392,6 @@
 	            return null;
 	    }
 	}
-	var store = storeManager();
-	var data = JSON.stringify([{
-	        graveSon: {
-	            title: 'DComposeD',
-	            id: '123',
-	            key: 'graveSon',
-	            slug: 'grave_son',
-	            route: '/music/grave_son',
-	            mp3URL: '//s3-us-west-2.amazonaws.com/elasticbeanstalk-us-west-2-176659737152/dcomposed-remaster-wip.m4a',
-	            mp4URL: '/dcomp_wip.mp4',
-	            imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/c_scale,h_820,q_54/v1509156983/dcomposed-album-art_mavbxv.jpg',
-	            weight: 1,
-	            mode: 'VIDEO',
-	            likes: 31,
-	            downloads: 29,
-	            shares: 27,
-	            plays: 153,
-	        },
-	    }, {
-	        getSome: {
-	            title: 'Grave Son',
-	            id: '123',
-	            key: 'getSome',
-	            slug: 'get_some',
-	            route: '/music/grave_son',
-	            mp3URL: 'GetSOmeNom.m4a',
-	            mp4URL: '/dcomp_wip.mp4',
-	            imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-	            weight: 1,
-	            mode: 'VIDEO',
-	            likes: 31,
-	            downloads: 29,
-	            shares: 27,
-	            plays: 153,
-	        },
-	    }, {
-	        makeSome: {
-	            title: 'Fitzpatrick',
-	            id: '123',
-	            key: 'fitzPatrick',
-	            slug: 'fitz_patrick',
-	            route: '/music/grave_son',
-	            mp3URL: '//s3-us-west-2.amazonaws.com/elasticbeanstalk-us-west-2-176659737152/fitzpatrick.wav',
-	            mp4URL: '/dcomp_wip.mp4',
-	            imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-	            weight: 1,
-	            mode: 'VIDEO',
-	            likes: 31,
-	            downloads: 29,
-	            shares: 27,
-	            plays: 153,
-	        },
-	    }, {
-	        ravenFun: {
-	            title: 'Grave Son',
-	            id: '123',
-	            key: 'ravenFun',
-	            slug: 'raven_fun',
-	            route: '/music/grave_son',
-	            mp3URL: 'GetSOmeNom.m4a',
-	            mp4URL: '/dcomp_wip.mp4',
-	            imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-	            weight: 1,
-	            mode: 'VIDEO',
-	            likes: 31,
-	            downloads: 29,
-	            shares: 27,
-	            plays: 153,
-	        },
-	    }, {
-	        greaterSum: {
-	            title: 'Grave Son',
-	            id: '123',
-	            key: 'greaterSum',
-	            slug: 'greater_sum',
-	            route: '/music/grave_son',
-	            mp3URL: 'GetSOmeNom.m4a',
-	            mp4URL: '/dcomp_wip.mp4',
-	            imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-	            weight: 1,
-	            mode: 'VIDEO',
-	            likes: 31,
-	            downloads: 29,
-	            shares: 27,
-	            plays: 153,
-	        },
-	    }, {
-	        lessThanOne: {
-	            title: 'Grave Son',
-	            id: '123',
-	            key: 'lessThanOne',
-	            slug: 'less_than_one',
-	            route: '/music/grave_son',
-	            mp3URL: 'GetSOmeNom.m4a',
-	            mp4URL: '/dcomp_wip.mp4',
-	            imgURL: '//res.cloudinary.com/dncldsgvn/image/upload/v1507473563/grave-son-cover_dpnpu0.jpg',
-	            weight: 1,
-	            mode: 'VIDEO',
-	            likes: 31,
-	            downloads: 29,
-	            shares: 27,
-	            plays: 153,
-	        }
-	    }]);
-	store.createWith({ manifest: data }, 'MANIFEST')
-	    .then(function (res) { return console.log('success', res); });
 
 
 /***/ }),
@@ -432,23 +403,20 @@
 	var mongoose = __webpack_require__(6);
 	var Schema = mongoose.Schema;
 	exports.TrackDataSchema = new Schema({
+	    id: String,
 	    mp3Data: Buffer,
 	    mp4Data: Buffer,
-	    imgURL: String,
 	    imgData: Buffer,
-	    soundS3URL: String,
-	    videoS3URL: String,
-	});
-	exports.TrackInfoSchema = new Schema({
-	    track_id: String,
+	    imgURL: String,
+	    soundURL: String,
+	    videoURL: String,
 	    slug: String,
 	    mode: String,
 	    title: String,
 	    key: String,
 	    route: String,
 	});
-	exports.TrackStatsSchema = new Schema({
-	    track_id: String,
+	exports.TrackStats = new Schema({
 	    likes: Number,
 	    downloads: Number,
 	    shares: Number,
@@ -471,6 +439,46 @@
 
 /***/ }),
 /* 10 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	"use strict";
+	Object.defineProperty(exports, "__esModule", { value: true });
+	var mongoose = __webpack_require__(6);
+	var Schema = mongoose.Schema;
+	exports.SoundInfoSchema = new Schema({
+	    id: String,
+	    sound_id: String,
+	    soundURL: String,
+	    videoURL: String,
+	    imgURL: String,
+	    title: String,
+	    description: String
+	});
+
+
+/***/ }),
+/* 11 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	"use strict";
+	Object.defineProperty(exports, "__esModule", { value: true });
+	var mongoose = __webpack_require__(6);
+	var Schema = mongoose.Schema;
+	exports.TrackDataBufferSchema = new Schema({
+	    id: String,
+	    track_id: {
+	        type: String,
+	        unique: true,
+	        index: true
+	    },
+	    soundData: String,
+	    videoData: String,
+	    imgData: String,
+	});
+
+
+/***/ }),
+/* 12 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -519,7 +527,7 @@
 	};
 	Object.defineProperty(exports, "__esModule", { value: true });
 	var store_manager_1 = __webpack_require__(7);
-	var login_manager_1 = __webpack_require__(11);
+	var login_manager_1 = __webpack_require__(13);
 	var storeM = store_manager_1.storeManager();
 	var loginM = new login_manager_1.LoginManager();
 	function publicEndpoints(socket) {
@@ -549,7 +557,7 @@
 	        var info;
 	        return __generator(this, function (_a) {
 	            switch (_a.label) {
-	                case 0: return [4 /*yield*/, storeM.getAllSongsInfo()];
+	                case 0: return [4 /*yield*/, storeM.getAllSoundsInfo()];
 	                case 1:
 	                    info = _a.sent();
 	                    if (info) {
@@ -558,6 +566,26 @@
 	                    }
 	                    else {
 	                        socket.emit("GET_ALL_MUSIC_DETAILS::CLIENT_" + sessionId, { ok: false, message: 'Failed to get track by prop.' });
+	                    }
+	                    return [2 /*return*/];
+	            }
+	        });
+	    }); });
+	    socket.on('GET_ALL_SOUND_INFO', function (sessionId) { return __awaiter(_this, void 0, void 0, function () {
+	        var info;
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
+	                case 0:
+	                    console.log('getting', sessionId);
+	                    return [4 /*yield*/, storeM.getAllSoundsInfo()];
+	                case 1:
+	                    info = _a.sent();
+	                    if (info) {
+	                        console.log('get info', info, sessionId);
+	                        socket.emit("GET_ALL_SOUND_INFO::CLIENT_" + sessionId, { ok: true, payload: info });
+	                    }
+	                    else {
+	                        socket.emit("GET_ALL_SOUND_INFO::CLIENT_" + sessionId, { ok: false, message: 'Failed to get track by prop.' });
 	                    }
 	                    return [2 /*return*/];
 	            }
@@ -581,18 +609,18 @@
 	        });
 	    }); });
 	    socket.on('LOGIN', function (payload) { return __awaiter(_this, void 0, void 0, function () {
-	        var jwtResponse;
+	        var rSResponse;
 	        return __generator(this, function (_a) {
 	            switch (_a.label) {
 	                case 0: return [4 /*yield*/, loginM.signInUser(payload.credentials, payload.sessionId)];
 	                case 1:
-	                    jwtResponse = _a.sent();
-	                    console.log('jwt response', jwtResponse);
-	                    if (jwtResponse.ok) {
-	                        socket.emit("LOGIN::CLIENT_" + payload.sessionId, { ok: true, jwt: jwtResponse.jwt });
+	                    rSResponse = _a.sent();
+	                    console.log('jwt response', rSResponse);
+	                    if (rSResponse.ok) {
+	                        socket.emit("LOGIN::CLIENT_" + payload.sessionId, rSResponse);
 	                    }
 	                    else {
-	                        socket.emit("LOGIN::CLIENT_" + payload.sessionId, { ok: false, message: jwtResponse.message });
+	                        socket.emit("LOGIN::CLIENT_" + payload.sessionId, rSResponse);
 	                    }
 	                    return [2 /*return*/];
 	            }
@@ -603,7 +631,7 @@
 
 
 /***/ }),
-/* 11 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -643,19 +671,21 @@
 	    }
 	};
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var user_model_1 = __webpack_require__(12);
-	var _local_credentials_1 = __webpack_require__(13);
+	var user_model_1 = __webpack_require__(14);
+	var _local_credentials_1 = __webpack_require__(15);
 	var mongoose = __webpack_require__(6);
-	var bcrypt = __webpack_require__(14);
-	var JSONWebToken = __webpack_require__(15);
+	var bcrypt = __webpack_require__(16);
+	var JSONWebToken = __webpack_require__(17);
 	var LoginManager = /** @class */ (function () {
 	    function LoginManager() {
 	        this.User = mongoose.model('User', user_model_1.UserModel);
-	        // this.User.create({
-	        // 	username: 'ADMIN-NOCEBO',
-	        // 	password: this.hashPassword('dementedGrapefruit00')
-	        // }).then(res => res);
 	    }
+	    LoginManager.prototype.CreateUser = function () {
+	        this.User.create({
+	            username: 'ADMIN-NOCEBO',
+	            password: this.hashPassword('dementedGrapefruit00')
+	        }).then(function (res) { return res; });
+	    };
 	    LoginManager.prototype.hashPassword = function (password) {
 	        return bcrypt.hashSync(password, 8);
 	    };
@@ -676,29 +706,65 @@
 	            });
 	        });
 	    };
-	    LoginManager.prototype.returnSessionToken = function (sessionId) {
-	        return JSONWebToken.sign({ createdWith: sessionId, user: 'ADMIN' }, _local_credentials_1.SECRET);
+	    LoginManager.prototype.returnSessionToken = function (body) {
+	        return JSONWebToken.sign({
+	            sessionId: body.sessionId,
+	            user: body.username
+	        }, _local_credentials_1.SECRET);
 	    };
 	    LoginManager.prototype.signInUser = function (credentials, sessionId) {
-	        var _this = this;
-	        return this.validatePassword(credentials.password, credentials.username)
-	            .then(function (isValid) {
-	            console.log('isValid', isValid);
-	            if (isValid) {
-	                console.log('logged in ', credentials);
-	                return { ok: true, jwt: _this.returnSessionToken(sessionId) };
-	            }
-	            else {
-	                console.log('logged in failed', credentials);
-	                return { ok: false, message: 'Credentials did not match.' };
-	            }
+	        return __awaiter(this, void 0, void 0, function () {
+	            var _this = this;
+	            return __generator(this, function (_a) {
+	                switch (_a.label) {
+	                    case 0: return [4 /*yield*/, this.validatePassword(credentials.password, credentials.username)
+	                            .then(function (isValid) { return __awaiter(_this, void 0, void 0, function () {
+	                            var user;
+	                            return __generator(this, function (_a) {
+	                                switch (_a.label) {
+	                                    case 0:
+	                                        if (!isValid) return [3 /*break*/, 2];
+	                                        return [4 /*yield*/, this.User.findOne({ username: credentials.username })];
+	                                    case 1:
+	                                        user = _a.sent();
+	                                        if (user) {
+	                                            return [2 /*return*/, { ok: true, payload: { jwt: this.returnSessionToken({ sessionId: sessionId, username: user.username }) } }];
+	                                        }
+	                                        else {
+	                                            return [2 /*return*/, { ok: false, message: 'User not found.' }];
+	                                        }
+	                                        return [3 /*break*/, 3];
+	                                    case 2:
+	                                        console.log('logged in failed', credentials);
+	                                        return [2 /*return*/, { ok: false, message: 'Credentials did not match.' }];
+	                                    case 3: return [2 /*return*/];
+	                                }
+	                            });
+	                        }); })];
+	                    case 1: return [2 /*return*/, _a.sent()];
+	                }
+	            });
 	        });
 	    };
 	    LoginManager.prototype.jwtVerify = function (jwt) {
-	        return {
-	            verified: JSONWebToken.verify(jwt, 8),
-	            data: JSONWebToken.decode(jwt, _local_credentials_1.SECRET)
-	        };
+	        return __awaiter(this, void 0, void 0, function () {
+	            var jwtVerify;
+	            return __generator(this, function (_a) {
+	                switch (_a.label) {
+	                    case 0:
+	                        jwtVerify = new Promise(function (resolve, reject) {
+	                            JSONWebToken.verify(jwt, _local_credentials_1.SECRET, function (error, decoded) {
+	                                if (error) {
+	                                    reject({ ok: false, message: 'JWT was invalid' + error });
+	                                }
+	                                resolve({ ok: true, payload: decoded });
+	                            });
+	                        });
+	                        return [4 /*yield*/, jwtVerify];
+	                    case 1: return [2 /*return*/, _a.sent()];
+	                }
+	            });
+	        });
 	    };
 	    return LoginManager;
 	}());
@@ -706,7 +772,7 @@
 
 
 /***/ }),
-/* 12 */
+/* 14 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -725,7 +791,7 @@
 
 
 /***/ }),
-/* 13 */
+/* 15 */
 /***/ (function(module, exports) {
 
 	"use strict";
@@ -738,19 +804,19 @@
 
 
 /***/ }),
-/* 14 */
+/* 16 */
 /***/ (function(module, exports) {
 
 	module.exports = require("bcryptjs");
 
 /***/ }),
-/* 15 */
+/* 17 */
 /***/ (function(module, exports) {
 
 	module.exports = require("jsonwebtoken");
 
 /***/ }),
-/* 16 */
+/* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -790,14 +856,40 @@
 	    }
 	};
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var login_manager_1 = __webpack_require__(11);
+	var login_manager_1 = __webpack_require__(13);
+	var store_manager_1 = __webpack_require__(7);
+	var loginM = new login_manager_1.LoginManager();
+	var storeM = store_manager_1.storeManager();
 	function sessionEndpoints(socket) {
 	    var _this = this;
-	    var loginM = new login_manager_1.LoginManager();
+	    var endpointJWT = function (path, jwt, action, mainFunction) {
+	        socket.on(path, function () { return __awaiter(_this, void 0, void 0, function () {
+	            var sessionId, response;
+	            return __generator(this, function (_a) {
+	                sessionId = loginM.jwtVerify(jwt).sessionId;
+	                if (sessionId) {
+	                    response = mainFunction();
+	                    if (response.ok) {
+	                        socket.emit(path + "::CLIENT_" + sessionId, response);
+	                    }
+	                    else {
+	                        socket.emit(path + "::CLIENT_" + sessionId, response);
+	                    }
+	                }
+	                else {
+	                    socket.emit(path + "::CLIENT_" + sessionId, {
+	                        ok: false,
+	                        message: "Error with " + path + ".",
+	                    });
+	                }
+	                return [2 /*return*/];
+	            });
+	        }); });
+	    };
 	    socket.on('SESSION_AUTH', function (jwt, sessionId) { return __awaiter(_this, void 0, void 0, function () {
 	        return __generator(this, function (_a) {
 	            if (loginM.jwtVerify(jwt)) {
-	                socket.emit("SESSION_AUTH::CLIENT_" + sessionId, { ok: true, });
+	                socket.emit("SESSION_AUTH::CLIENT_" + sessionId, { ok: true });
 	            }
 	            else {
 	                socket.emit("SESSION_AUTH::CLIENT_" + sessionId, {
@@ -808,12 +900,89 @@
 	            return [2 /*return*/];
 	        });
 	    }); });
+	    socket.on('REGISTER_NEW_SOUND', function (payload) { return __awaiter(_this, void 0, void 0, function () {
+	        var JWT, rSResponse;
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
+	                case 0:
+	                    console.log('Register New Sound\n', payload);
+	                    return [4 /*yield*/, loginM.jwtVerify(payload.jwt)];
+	                case 1:
+	                    JWT = _a.sent();
+	                    console.log('JWT \n', JWT);
+	                    if (!JWT.ok) return [3 /*break*/, 3];
+	                    return [4 /*yield*/, storeM.registerNewSound(payload.formData)];
+	                case 2:
+	                    rSResponse = _a.sent();
+	                    console.log('rsResponse', rSResponse);
+	                    socket.emit("SESSION_AUTH::CLIENT_" + JWT.decoded.sessionId, rSResponse);
+	                    return [3 /*break*/, 4];
+	                case 3:
+	                    socket.emit("SESSION_AUTH::CLIENT_" + payload.sessionId, {
+	                        ok: false,
+	                        message: 'JsonWebToken not valid.',
+	                    });
+	                    _a.label = 4;
+	                case 4: return [2 /*return*/];
+	            }
+	        });
+	    }); });
+	    socket.on('SESSION::UPLOAD_TRACK_FILE', function (payload) { return __awaiter(_this, void 0, void 0, function () {
+	        var JWT, _a, trackId, type, encoding, file, uploadResult;
+	        return __generator(this, function (_b) {
+	            switch (_b.label) {
+	                case 0: return [4 /*yield*/, loginM.jwtVerify(payload.jwt)];
+	                case 1:
+	                    JWT = _b.sent();
+	                    if (!(JWT.ok && JWT.payload.sessionId === payload.sessionId)) return [3 /*break*/, 3];
+	                    _a = payload.formData, trackId = _a.trackId, type = _a.type, encoding = _a.encoding, file = _a.file;
+	                    return [4 /*yield*/, storeM.uploadTrackFile(trackId, type, encoding, file)
+	                            .catch(function (err) { return console.log('err upload', err); })];
+	                case 2:
+	                    uploadResult = _b.sent();
+	                    socket.emit("SESSION::UPLOAD_TRACK_FILE::CLIENT_" + JWT.payload.sessionId, uploadResult);
+	                    return [3 /*break*/, 4];
+	                case 3:
+	                    socket.emit("SESSION::UPLOAD_TRACK_FILE::CLIENT_" + payload.sessionId, {
+	                        payload: payload.formData,
+	                        ok: false,
+	                        message: 'JWT is invalid.',
+	                    });
+	                    _b.label = 4;
+	                case 4: return [2 /*return*/];
+	            }
+	        });
+	    }); });
+	    socket.on('SESSION::UPLOAD_VIDEO', function (jwt, sessionId) { return __awaiter(_this, void 0, void 0, function () {
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
+	                case 0: return [4 /*yield*/, loginM.jwtVerify(jwt)];
+	                case 1:
+	                    if (_a.sent()) {
+	                        socket.emit("SESSION_AUTH::CLIENT_" + sessionId, { ok: true });
+	                    }
+	                    else {
+	                        socket.emit("SESSION_AUTH::CLIENT_" + sessionId, {
+	                            ok: false,
+	                            message: 'JWT is invalid.',
+	                        });
+	                    }
+	                    return [2 /*return*/];
+	            }
+	        });
+	    }); });
 	}
 	exports.sessionEndpoints = sessionEndpoints;
 
 
 /***/ }),
-/* 17 */
+/* 19 */
+/***/ (function(module, exports) {
+
+	module.exports = require("fs");
+
+/***/ }),
+/* 20 */
 /***/ (function(module, exports) {
 
 	module.exports = require("socket.io");
