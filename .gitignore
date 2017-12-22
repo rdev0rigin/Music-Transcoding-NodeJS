@@ -14,3 +14,4 @@ certificate.pem
 key.pem
 _local.credentials.ts
 dcm-file-store/*
+data/
