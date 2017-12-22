@@ -43,7 +43,9 @@ export function getTokenAndURL() {
 		headers: {
 			"oauth_callback":"http://localhost:3000/code",
 			"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-		}
+		},
+		body: `grant_type=${TWITTER.APIkey}:${TWITTER.secret}`
+
 	}, (res) => {
 
 			console.log('response', res)

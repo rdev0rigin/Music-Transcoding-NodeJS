@@ -1,8 +1,7 @@
 import {LoginManager} from '../auth/login.manager';
 import {storeManager} from '../managers/store.manager';
-import {JWT} from '../odm/models/json-web-token.model';
-import {SoundInfoModel} from '../odm/models/sound-info.model';
-import {RSocketResponse} from '../models/response-socket.model';
+import {SoundDetailsModel} from '../odm/models/sound-info.model';
+import {saveSound} from '../services/transcoding.service';
 
 const loginM = new LoginManager();
 const storeM = storeManager();
@@ -42,47 +41,40 @@ export function sessionEndpoints(socket: any) {
 		}
 	});
 
-	socket.on('REGISTER_NEW_SOUND', async (payload: {jwt: string, sessionId: string, formData: SoundInfoModel}) => {
-		console.log('Register New Sound\n', payload);
-		const JWT: JWT | any = await loginM.jwtVerify(payload.jwt);
-		console.log('JWT \n', JWT);
-		if (JWT.ok) {
-			const rSResponse = await storeM.registerNewSound(payload.formData);
-			console.log('rsResponse', rSResponse);
-			socket.emit(`SESSION_AUTH::CLIENT_${JWT.decoded.sessionId}`, rSResponse);
+	socket.on('REGISTER_NEW_SOUND', async (payload: {jwt: string, sessionId: string, formData: SoundDetailsModel}, callback: (response: any) => void) => {
+		const jwtResponse: any = await loginM.jwtVerify(payload.jwt);
+		if (jwtResponse.ok) {
+			const rSResponse = await storeM.registerNewSound(payload.formData, jwtResponse.payload.uid);
+			callback(rSResponse);
 		} else {
-			socket.emit(`SESSION_AUTH::CLIENT_${payload.sessionId}`, {
+			callback({
 				ok: false,
 				message: 'JsonWebToken not valid.',
 			});
 		}
 	});
 
-	socket.on('SESSION::UPLOAD_TRACK_FILE', async (payload: {jwt: string, sessionId: string, formData: any}) => {
-		const JWT: RSocketResponse = await loginM.jwtVerify(payload.jwt);
-		if(JWT.ok && JWT.payload.sessionId === payload.sessionId) {
-			const {trackId, type, encoding, file} = payload.formData;
-			const uploadResult = await storeM.uploadTrackFile(trackId, type, encoding, file)
-				.catch(err => console.log('err upload', err));
-			socket.emit(`SESSION::UPLOAD_TRACK_FILE::CLIENT_${JWT.payload.sessionId}`, uploadResult);
+	socket.on('SESSION::UPDATE_SOUND_DETAIL', async (payload: any, callback: (response: any) => void) => {
+		const jwtResponse: any = await loginM.jwtVerify(payload.jwt);
+		if (jwtResponse.ok) {
+			const rSResponse = await storeM.updateSoundByProp(payload.sound_id, payload.prop);
+			callback(rSResponse);
 		} else {
-			socket.emit(`SESSION::UPLOAD_TRACK_FILE::CLIENT_${payload.sessionId}`,
-				{
-					payload: payload.formData,
-					ok: false,
-					message: 'JWT is invalid.',
-				});
-			}
-		});
-
-	socket.on('SESSION::UPLOAD_VIDEO', async (jwt: string, sessionId: string) => {
-		if (await loginM.jwtVerify(jwt)) {
-			socket.emit(`SESSION_AUTH::CLIENT_${sessionId}`, {ok: true});
-		} else {
-			socket.emit(`SESSION_AUTH::CLIENT_${sessionId}`, {
+			callback({
 				ok: false,
-				message: 'JWT is invalid.',
+				message: 'JsonWebToken not valid.',
 			});
+		}
+	});
+
+	socket.on('SESSION::FILE_UPLOAD', async (payload: any, ack: (responseTransport: any) => void) => {
+		const jwtResponse = await loginM.jwtVerify(payload.jwt);
+		if (jwtResponse.ok){
+			const response = await saveSound(jwtResponse.payload.uid, payload.song_id, payload.data)
+				.catch(err => console.log('Error: Saving sound to system.', err));
+			ack(response);
+		} else {
+			ack({ok: false, message: 'JWT not valid. Please log in again.'});
 		}
 	});
 }

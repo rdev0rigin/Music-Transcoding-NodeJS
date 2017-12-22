@@ -1,10 +1,8 @@
-import Service from './service';
+import BootStrap from './backend';
 
 function boot() {
-	Service.bootstrap();
+	BootStrap.bootstrap();
 }
-
-
 
 boot();
 

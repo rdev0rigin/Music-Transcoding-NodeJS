@@ -12,7 +12,7 @@ export class LoginManager {
 
 	private User = mongoose.model('User', UserModel);
 
-	private CreateUser(): void {
+	public CreateUser(): void {
 		this.User.create({
 			username: 'ADMIN-NOCEBO',
 			password: this.hashPassword('dementedGrapefruit00')
@@ -25,17 +25,17 @@ export class LoginManager {
 
 	private async validatePassword(password: string, username: string): Promise<boolean> {
 		const user: any = await this.User.findOne({username: username});
-		console.log('user', user);
 		if (user) {
 			return bcrypt.compareSync(password, user.password);
 		}
 		return false;
 	}
 
-	private returnSessionToken(body: {sessionId: string, username: string}): string {
+	private returnSessionToken(body: {sessionId: string, username: string, uid: string}): string {
 		return JSONWebToken.sign({
 			sessionId: body.sessionId,
-			user: body.username
+			user: body.username,
+			uid: body.uid
 		}, SECRET);
 	}
 
@@ -45,12 +45,11 @@ export class LoginManager {
 				if (isValid) {
 					const user: any = await this.User.findOne({username: credentials.username});
 					if(user){
-						return {ok: true, payload: {jwt: this.returnSessionToken({sessionId: sessionId, username: user.username})}};
+						return {ok: true, payload: {jwt: this.returnSessionToken({sessionId: sessionId, username: user.username, uid: user._id})}};
 					} else {
 						return {ok: false, message: 'User not found.'}
 					}
 				} else {
-					console.log('logged in failed', credentials);
 					return {ok: false, message: 'Credentials did not match.'};
 				}
 		});

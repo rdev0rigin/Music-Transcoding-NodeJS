@@ -53,9 +53,9 @@
 
 	"use strict";
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var service_1 = __webpack_require__(2);
+	var backend_1 = __webpack_require__(2);
 	function boot() {
-	    service_1.default.bootstrap();
+	    backend_1.default.bootstrap();
 	}
 	boot();
 
@@ -67,18 +67,19 @@
 	"use strict";
 	Object.defineProperty(exports, "__esModule", { value: true });
 	var https = __webpack_require__(3);
-	var express = __webpack_require__(4);
-	var dbConfig = __webpack_require__(5);
+	var dbConfig = __webpack_require__(4);
 	var store_manager_1 = __webpack_require__(7);
-	var public_endpoint_1 = __webpack_require__(12);
-	var login_manager_1 = __webpack_require__(13);
-	var session_endpoint_1 = __webpack_require__(18);
-	var fs = __webpack_require__(19);
+	var public_endpoint_1 = __webpack_require__(15);
+	var login_manager_1 = __webpack_require__(16);
+	var session_endpoint_1 = __webpack_require__(21);
+	var fs = __webpack_require__(5);
 	var BackendServices = /** @class */ (function () {
 	    function BackendServices() {
-	        this.app = express();
 	        this.port = 2820;
-	        this.socket = __webpack_require__(20)(2820, {});
+	        this.socket = __webpack_require__(22)(2820, {
+	            secure: true,
+	            maxHttpBufferSize: 1024 * 1024 * 1024,
+	        });
 	        this.clients = [];
 	        this.init();
 	        this.setupWS();
@@ -94,10 +95,10 @@
 	        this.socket.on('connect', function (socket) {
 	            _this.generalAPI = public_endpoint_1.publicEndpoints(socket);
 	            _this.sessionAPI = session_endpoint_1.sessionEndpoints(socket);
-	            _this.clients = _this.clients.concat([socket]);
-	            var index = _this.clients.length - 1;
-	            socket.on('disconnecting', function () {
-	                console.log('index on close', index);
+	            _this.clients = _this.clients.concat([socket.id]);
+	            socket.on('disconnecting', function (res) {
+	                var index = _this.clients.findIndex(function (value) { return value === socket.id; });
+	                console.log("Client DC'd");
 	                _this.clients.splice(index, 1);
 	            });
 	        });
@@ -106,7 +107,7 @@
 	        this.server = https.createServer({
 	            cert: fs.readFileSync('/Users/raven/dev0/dcomp-backend/src/certificate.pem'),
 	            key: fs.readFileSync('/Users/raven/dev0/dcomp-backend/src/key.pem')
-	        }, this.app);
+	        });
 	        this.server.listen(this.port, 'localhost');
 	        this.storeManager = store_manager_1.storeManager();
 	        this.loginManager = new login_manager_1.LoginManager();
@@ -125,27 +126,34 @@
 
 /***/ }),
 /* 4 */
-/***/ (function(module, exports) {
-
-	module.exports = require("express");
-
-/***/ }),
-/* 5 */
 /***/ (function(module, exports, __webpack_require__) {
 
-	"use strict";
+	/* WEBPACK VAR INJECTION */(function(__dirname) {"use strict";
+	var fs = __webpack_require__(5);
 	module.exports = function () {
 	    var mongoose = __webpack_require__(6);
 	    var db = mongoose.connection;
+	    console.log('pwd', __dirname, process.env.PATH.PWD);
 	    mongoose.connect('mongodb://localhost:27017/dcomp_store_root', {
-	        useMongoClient: true
+	        useMongoClient: true,
+	        ssl: true,
+	        sslValidate: false,
+	        sslKey: fs.readFileSync(__dirname + '/../../_local/secops/mongodb-cert.key'),
+	        sslCert: fs.readFileSync(__dirname + '/../../_local/secops/mongodb-cert.crt')
 	    });
 	    db.on('error', console.error.bind(console, 'connection error'));
 	    db.once('open', function () {
 	        console.log('Db Connected!');
 	    });
 	};
+	
+	/* WEBPACK VAR INJECTION */}.call(exports, "src/odm"))
 
+/***/ }),
+/* 5 */
+/***/ (function(module, exports) {
+
+	module.exports = require("fs-extra");
 
 /***/ }),
 /* 6 */
@@ -158,14 +166,6 @@
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
-	var __assign = (this && this.__assign) || Object.assign || function(t) {
-	    for (var s, i = 1, n = arguments.length; i < n; i++) {
-	        s = arguments[i];
-	        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-	            t[p] = s[p];
-	    }
-	    return t;
-	};
 	var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
 	    return new (P || (P = Promise))(function (resolve, reject) {
 	        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -202,37 +202,19 @@
 	    }
 	};
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var track_model_1 = __webpack_require__(8);
 	var mongoose = __webpack_require__(6);
-	var manifest_model_1 = __webpack_require__(9);
-	var sound_info_model_1 = __webpack_require__(10);
-	var track_data_model_1 = __webpack_require__(11);
-	var Track = mongoose.model('Track', track_model_1.TrackDataSchema);
-	var Manifest = mongoose.model('Manifest', manifest_model_1.StoreManifest);
-	var SoundInfo = mongoose.model('SoundInfo', sound_info_model_1.SoundInfoSchema);
-	var TrackData = mongoose.model('TrackData', track_data_model_1.TrackDataBufferSchema);
+	var sound_info_model_1 = __webpack_require__(8);
+	var transcoding_service_1 = __webpack_require__(9);
+	var SoundInfo = mongoose.model('SoundInfo', sound_info_model_1.SoundDetailsSchema);
 	function storeManager() {
 	    var _this = this;
-	    // update resource index
-	    function uploadFile(fileProp, id) {
-	        return __awaiter(this, void 0, void 0, function () {
-	            var key;
-	            return __generator(this, function (_a) {
-	                key = Object.keys(fileProp)[0];
-	                return [2 /*return*/, new Buffer(fileProp[key], 'base64')];
-	            });
-	        });
-	    }
 	    return {
-	        getTrackByProp: function (prop) { return __awaiter(_this, void 0, void 0, function () {
+	        getSoundDetails: function (props) { return __awaiter(_this, void 0, void 0, function () {
 	            return __generator(this, function (_a) {
-	                switch (_a.label) {
-	                    case 0: return [4 /*yield*/, Track.findOne(prop)];
-	                    case 1: return [2 /*return*/, _a.sent()];
-	                }
+	                return [2 /*return*/, SoundInfo.find(props)];
 	            });
 	        }); },
-	        getAllSoundsInfo: function () { return __awaiter(_this, void 0, void 0, function () {
+	        getAllSoundsDetails: function () { return __awaiter(_this, void 0, void 0, function () {
 	            return __generator(this, function (_a) {
 	                switch (_a.label) {
 	                    case 0: return [4 /*yield*/, SoundInfo.find()];
@@ -240,158 +222,50 @@
 	                }
 	            });
 	        }); },
-	        getStreamById: function () {
-	            //  const { Writable } = require('stream');
-	            //  const myWritable = new Writable({
-	            // 	write(chunk, encoding, callback) {
-	            // 		// ...
-	            // 	},
-	            // 	writev(chunks, callback) {
-	            // 		// ...
-	            // 	}
-	            // });
-	            // const readable = new ReadableStream()
-	        },
-	        createWith: function (payload, type) { return __awaiter(_this, void 0, void 0, function () {
-	            var model;
+	        registerNewSound: function (formData, userID) { return __awaiter(_this, void 0, void 0, function () {
+	            var title, description, registered;
 	            return __generator(this, function (_a) {
 	                switch (_a.label) {
 	                    case 0:
-	                        model = getModel(type);
-	                        if (!model) {
-	                            return [2 /*return*/, void 0];
-	                        }
-	                        return [4 /*yield*/, model.create(payload)
-	                                .then(function (value) {
-	                            })
-	                                .catch(function (err) { console.log('store error', err); })];
-	                    case 1: return [2 /*return*/, _a.sent()];
-	                }
-	            });
-	        }); },
-	        registerNewSound: function (formData) { return __awaiter(_this, void 0, void 0, function () {
-	            return __generator(this, function (_a) {
-	                switch (_a.label) {
-	                    case 0: return [4 /*yield*/, SoundInfo.create(formData)];
-	                    case 1: return [2 /*return*/, _a.sent()];
-	                }
-	            });
-	        }); },
-	        registerNewTrack: function (formData, fileData) { return __awaiter(_this, void 0, void 0, function () {
-	            var title, key, route, slug, mode, mp3Data, mp4Data, imgData, soundURL, videoURL, imgURL;
-	            return __generator(this, function (_a) {
-	                switch (_a.label) {
-	                    case 0:
-	                        title = formData.title, key = formData.key, route = formData.route, slug = formData.slug, mode = formData.mode;
-	                        mp3Data = fileData.mp3Data, mp4Data = fileData.mp4Data, imgData = fileData.imgData, soundURL = fileData.soundURL, videoURL = fileData.videoURL, imgURL = fileData.imgURL;
-	                        return [4 /*yield*/, Track.create({
-	                                title: title,
-	                                key: key,
-	                                route: route,
-	                                slug: slug,
-	                                mode: mode,
-	                                mp3Data: mp3Data || '',
-	                                mp4Data: mp4Data || '',
-	                                imgData: imgData || '',
-	                                imgURL: imgURL || '',
-	                                soundURL: soundURL || '',
-	                                videoURL: videoURL || '',
-	                            })];
-	                    case 1: return [2 /*return*/, _a.sent()];
-	                }
-	            });
-	        }); },
-	        updateTrackRecord: function (payload, prop) { return __awaiter(_this, void 0, void 0, function () {
-	            return __generator(this, function (_a) {
-	                switch (_a.label) {
-	                    case 0: return [4 /*yield*/, Track.find(prop).update(payload)];
+	                        title = formData.title, description = formData.description;
+	                        return [4 /*yield*/, SoundInfo.create({ title: title, description: description })];
 	                    case 1:
-	                        if (!((_a.sent()) > 0)) return [3 /*break*/, 3];
-	                        return [4 /*yield*/, Track.findOne(prop)];
-	                    case 2: return [2 /*return*/, _a.sent()];
-	                    case 3: return [2 /*return*/, void 0];
+	                        registered = _a.sent();
+	                        if (registered) {
+	                            return [2 /*return*/, transcoding_service_1.saveSound(userID, registered._id, formData.soundFile)];
+	                        }
+	                        else {
+	                            console.log('error registering sound', registered);
+	                            return [2 /*return*/, { ok: false, message: registered }];
+	                        }
+	                        return [2 /*return*/];
 	                }
 	            });
 	        }); },
-	        updateByProp: function (payload, prop, type) { return __awaiter(_this, void 0, void 0, function () {
-	            var model;
+	        updateSoundByProp: function (id, prop) { return __awaiter(_this, void 0, void 0, function () {
+	            var soundDoc;
 	            return __generator(this, function (_a) {
 	                switch (_a.label) {
 	                    case 0:
-	                        model = getModel(type);
-	                        if (!model) {
-	                            return [2 /*return*/, void 0];
-	                        }
-	                        return [4 /*yield*/, model.find(prop).update(payload).exec()];
-	                    case 1: return [2 /*return*/, _a.sent()];
-	                }
-	            });
-	        }); },
-	        getWholeFile: function (prop, type) { return __awaiter(_this, void 0, void 0, function () {
-	            var model;
-	            return __generator(this, function (_a) {
-	                switch (_a.label) {
-	                    case 0:
-	                        model = getModel(type);
-	                        if (!model) {
-	                            return [2 /*return*/, void 0];
-	                        }
-	                        return [4 /*yield*/, model.findOne(prop)
-	                                .catch(function (err) {
-	                                console.log('store error', err);
-	                            })];
-	                    case 1: return [2 /*return*/, _a.sent()];
-	                }
-	            });
-	        }); },
-	        uploadTrackFile: function (trackId, type, encoding, file) { return __awaiter(_this, void 0, void 0, function () {
-	            var values, ifTrack;
-	            return __generator(this, function (_a) {
-	                switch (_a.label) {
-	                    case 0:
-	                        console.log(file);
-	                        values = {
-	                            track_id: trackId
-	                        };
-	                        switch (type) {
-	                            case 'VIDEO':
-	                                values = __assign({}, values, { videoData: file });
-	                                break;
-	                            case 'SOUND':
-	                                values = __assign({}, values, { soundData: file });
-	                                break;
-	                            case 'IMAGE':
-	                                values = __assign({}, values, { imgData: file });
-	                                break;
-	                            default:
-	                                return [2 /*return*/, { ok: false, message: 'No File Type Found' }];
-	                        }
-	                        return [4 /*yield*/, TrackData.findOne({ track_id: trackId })];
+	                        console.log('update', id, prop);
+	                        return [4 /*yield*/, SoundInfo.findById(id)
+	                                .catch(function (err) { return console.log('sound', err); })];
 	                    case 1:
-	                        ifTrack = _a.sent();
-	                        console.log('ifTrack', ifTrack);
-	                        if (!ifTrack) return [3 /*break*/, 3];
-	                        return [4 /*yield*/, ifTrack.update(values)];
-	                    case 2: return [2 /*return*/, _a.sent()];
-	                    case 3: return [4 /*yield*/, TrackData.create(values)];
-	                    case 4: return [2 /*return*/, _a.sent()];
+	                        soundDoc = _a.sent();
+	                        if (soundDoc) {
+	                            return [2 /*return*/, soundDoc.update(prop)
+	                                    .catch(function (err) { return console.log('update', err); })];
+	                        }
+	                        else {
+	                            return [2 /*return*/, { ok: false, message: 'Error: No Matching Sound ID' }];
+	                        }
+	                        return [2 /*return*/];
 	                }
 	            });
-	        }); },
+	        }); }
 	    };
 	}
 	exports.storeManager = storeManager;
-	function getModel(type) {
-	    switch (type) {
-	        case 'TRACK':
-	            return Track;
-	        case 'MANIFEST':
-	            return Manifest;
-	        default:
-	            console.log('error no model found of type', type);
-	            return null;
-	    }
-	}
 
 
 /***/ }),
@@ -402,52 +276,8 @@
 	Object.defineProperty(exports, "__esModule", { value: true });
 	var mongoose = __webpack_require__(6);
 	var Schema = mongoose.Schema;
-	exports.TrackDataSchema = new Schema({
+	exports.SoundDetailsSchema = new Schema({
 	    id: String,
-	    mp3Data: Buffer,
-	    mp4Data: Buffer,
-	    imgData: Buffer,
-	    imgURL: String,
-	    soundURL: String,
-	    videoURL: String,
-	    slug: String,
-	    mode: String,
-	    title: String,
-	    key: String,
-	    route: String,
-	});
-	exports.TrackStats = new Schema({
-	    likes: Number,
-	    downloads: Number,
-	    shares: Number,
-	    plays: Number,
-	});
-
-
-/***/ }),
-/* 9 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	"use strict";
-	Object.defineProperty(exports, "__esModule", { value: true });
-	var mongoose = __webpack_require__(6);
-	var Schema = mongoose.Schema;
-	exports.StoreManifest = new Schema({
-	    manifest: String
-	});
-
-
-/***/ }),
-/* 10 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	"use strict";
-	Object.defineProperty(exports, "__esModule", { value: true });
-	var mongoose = __webpack_require__(6);
-	var Schema = mongoose.Schema;
-	exports.SoundInfoSchema = new Schema({
-	    id: String,
-	    sound_id: String,
 	    soundURL: String,
 	    videoURL: String,
 	    imgURL: String,
@@ -457,39 +287,338 @@
 
 
 /***/ }),
+/* 9 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	"use strict";
+	var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+	    return new (P || (P = Promise))(function (resolve, reject) {
+	        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+	        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+	        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+	        step((generator = generator.apply(thisArg, _arguments || [])).next());
+	    });
+	};
+	var __generator = (this && this.__generator) || function (thisArg, body) {
+	    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+	    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+	    function verb(n) { return function (v) { return step([n, v]); }; }
+	    function step(op) {
+	        if (f) throw new TypeError("Generator is already executing.");
+	        while (_) try {
+	            if (f = 1, y && (t = y[op[0] & 2 ? "return" : op[0] ? "throw" : "next"]) && !(t = t.call(y, op[1])).done) return t;
+	            if (y = 0, t) op = [0, t.value];
+	            switch (op[0]) {
+	                case 0: case 1: t = op; break;
+	                case 4: _.label++; return { value: op[1], done: false };
+	                case 5: _.label++; y = op[1]; op = [0]; continue;
+	                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+	                default:
+	                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+	                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+	                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+	                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+	                    if (t[2]) _.ops.pop();
+	                    _.trys.pop(); continue;
+	            }
+	            op = body.call(thisArg, _);
+	        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+	        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+	    }
+	};
+	Object.defineProperty(exports, "__esModule", { value: true });
+	var fs_manager_1 = __webpack_require__(10);
+	var ffmpeg_service_1 = __webpack_require__(11);
+	var store_manager_1 = __webpack_require__(7);
+	var fs = __webpack_require__(5);
+	var Path = __webpack_require__(13);
+	var crypto = __webpack_require__(14);
+	function saveSound(userID, soundID, file) {
+	    return __awaiter(this, void 0, void 0, function () {
+	        var _this = this;
+	        return __generator(this, function (_a) {
+	            return [2 /*return*/, new Promise(function (resolve, reject) { return __awaiter(_this, void 0, void 0, function () {
+	                    var header, store, _i, _a, bit, path, MIME, outPath, saveResult, flacSaved, mp3Encoded, mp3File, fileHash, mp3Hash, doc;
+	                    return __generator(this, function (_b) {
+	                        switch (_b.label) {
+	                            case 0:
+	                                header = '';
+	                                store = store_manager_1.storeManager();
+	                                for (_i = 0, _a = file.subarray(0, 4); _i < _a.length; _i++) {
+	                                    bit = _a[_i];
+	                                    header += bit.toString(16);
+	                                }
+	                                path = process.env.PWD + "/dcm-file-store/" + soundID;
+	                                MIME = HEADER_TO_MIME(header);
+	                                outPath = process.env.PWD + "/dcm-file-store/" + soundID;
+	                                return [4 /*yield*/, fs_manager_1.saveToDir(path + "/source", soundID + "." + MIME, file)];
+	                            case 1:
+	                                saveResult = _b.sent();
+	                                if (!saveResult.ok) return [3 /*break*/, 6];
+	                                return [4 /*yield*/, ffmpeg_service_1.encodeAudioToFLAC(soundID, saveResult.path + "/" + saveResult.fileName, outPath + "/flac/")];
+	                            case 2:
+	                                flacSaved = _b.sent();
+	                                return [4 /*yield*/, ffmpeg_service_1.encodeAudioToMP3(soundID, saveResult.path + "/" + saveResult.fileName, outPath + "/mp3/")];
+	                            case 3:
+	                                mp3Encoded = _b.sent();
+	                                console.log('hit saveSound after mp3', mp3Encoded);
+	                                return [4 /*yield*/, fs.readFile(Path.join(process.env.PWD, 'dcm-file-store', soundID, "mp3", soundID + ".mp3"))];
+	                            case 4:
+	                                mp3File = _b.sent();
+	                                fileHash = crypto.createHash('sha256')
+	                                    .update(file);
+	                                mp3Hash = crypto.createHash('sha256')
+	                                    .update(mp3File);
+	                                return [4 /*yield*/, store.updateSoundByProp(soundID, {
+	                                        sourceHash: fileHash.digest('hex'),
+	                                        mp3Hash: mp3Hash.digest('hex')
+	                                    })];
+	                            case 5:
+	                                doc = _b.sent();
+	                                if (mp3Hash && fileHash) {
+	                                    resolve({ ok: true, body: { path: saveResult.path, details: doc } });
+	                                }
+	                                else {
+	                                    reject({ ok: false, message: 'Error transcoding' });
+	                                }
+	                                return [3 /*break*/, 7];
+	                            case 6:
+	                                reject({ ok: false, message: saveResult });
+	                                _b.label = 7;
+	                            case 7: return [2 /*return*/];
+	                        }
+	                    });
+	                }); })];
+	        });
+	    });
+	}
+	exports.saveSound = saveSound;
+	function HEADER_TO_MIME(header) {
+	    switch (header.slice(0, 6)) {
+	        case '464f52':
+	            return 'aif';
+	        case '494433':
+	            return 'mp3';
+	        case '524946':
+	            return 'wav';
+	        case '664C61':
+	            return 'flac';
+	        case '000001':
+	            return 'mp4';
+	        default:
+	            return 'unknown';
+	    }
+	}
+
+
+/***/ }),
+/* 10 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	"use strict";
+	var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+	    return new (P || (P = Promise))(function (resolve, reject) {
+	        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+	        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+	        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+	        step((generator = generator.apply(thisArg, _arguments || [])).next());
+	    });
+	};
+	var __generator = (this && this.__generator) || function (thisArg, body) {
+	    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+	    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+	    function verb(n) { return function (v) { return step([n, v]); }; }
+	    function step(op) {
+	        if (f) throw new TypeError("Generator is already executing.");
+	        while (_) try {
+	            if (f = 1, y && (t = y[op[0] & 2 ? "return" : op[0] ? "throw" : "next"]) && !(t = t.call(y, op[1])).done) return t;
+	            if (y = 0, t) op = [0, t.value];
+	            switch (op[0]) {
+	                case 0: case 1: t = op; break;
+	                case 4: _.label++; return { value: op[1], done: false };
+	                case 5: _.label++; y = op[1]; op = [0]; continue;
+	                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+	                default:
+	                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+	                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+	                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+	                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+	                    if (t[2]) _.ops.pop();
+	                    _.trys.pop(); continue;
+	            }
+	            op = body.call(thisArg, _);
+	        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+	        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+	    }
+	};
+	Object.defineProperty(exports, "__esModule", { value: true });
+	var fs = __webpack_require__(5);
+	function saveToDir(path, fileName, file) {
+	    return __awaiter(this, void 0, void 0, function () {
+	        var _this = this;
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
+	                case 0: return [4 /*yield*/, fs.ensureDir(path)
+	                        .then(function () { return __awaiter(_this, void 0, void 0, function () {
+	                        return __generator(this, function (_a) {
+	                            switch (_a.label) {
+	                                case 0: return [4 /*yield*/, fs.writeFile(path + "/" + fileName, file)
+	                                        .then(function (reason) {
+	                                        if (reason) {
+	                                            return { ok: false, message: 'file write error' };
+	                                        }
+	                                        else {
+	                                            return { ok: true, path: "" + path, fileName: "" + fileName };
+	                                        }
+	                                    })];
+	                                case 1: return [2 /*return*/, _a.sent()];
+	                            }
+	                        });
+	                    }); })
+	                        .catch(function (err) {
+	                        return { ok: false, message: 'ensure DIR error: ' + err };
+	                    })];
+	                case 1: return [2 /*return*/, _a.sent()];
+	            }
+	        });
+	    });
+	}
+	exports.saveToDir = saveToDir;
+	function openFile(sound_id) {
+	    return __awaiter(this, void 0, void 0, function () {
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
+	                case 0: return [4 /*yield*/, fs.readFile(process.env.PWD + "/dcm-file-store/" + sound_id + "/mp3/" + sound_id + ".mp3")];
+	                case 1: return [2 /*return*/, _a.sent()];
+	            }
+	        });
+	    });
+	}
+	exports.openFile = openFile;
+
+
+/***/ }),
 /* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
+	var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+	    return new (P || (P = Promise))(function (resolve, reject) {
+	        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+	        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+	        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+	        step((generator = generator.apply(thisArg, _arguments || [])).next());
+	    });
+	};
+	var __generator = (this && this.__generator) || function (thisArg, body) {
+	    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+	    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+	    function verb(n) { return function (v) { return step([n, v]); }; }
+	    function step(op) {
+	        if (f) throw new TypeError("Generator is already executing.");
+	        while (_) try {
+	            if (f = 1, y && (t = y[op[0] & 2 ? "return" : op[0] ? "throw" : "next"]) && !(t = t.call(y, op[1])).done) return t;
+	            if (y = 0, t) op = [0, t.value];
+	            switch (op[0]) {
+	                case 0: case 1: t = op; break;
+	                case 4: _.label++; return { value: op[1], done: false };
+	                case 5: _.label++; y = op[1]; op = [0]; continue;
+	                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+	                default:
+	                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+	                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+	                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+	                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+	                    if (t[2]) _.ops.pop();
+	                    _.trys.pop(); continue;
+	            }
+	            op = body.call(thisArg, _);
+	        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+	        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+	    }
+	};
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var mongoose = __webpack_require__(6);
-	var Schema = mongoose.Schema;
-	exports.TrackDataBufferSchema = new Schema({
-	    id: String,
-	    track_id: {
-	        type: String,
-	        unique: true,
-	        index: true
-	    },
-	    soundData: String,
-	    videoData: String,
-	    imgData: String,
-	});
+	var fs = __webpack_require__(5);
+	var spawn = __webpack_require__(12).spawn;
+	function encodeAudioToFLAC(fileName, filePath, outputPath) {
+	    return __awaiter(this, void 0, void 0, function () {
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
+	                case 0: return [4 /*yield*/, fs.ensureDir(outputPath)
+	                        .then(function () {
+	                        var ffmpeg = spawn("ffmpeg", ["-i", "" + filePath, "-c:a", "flac", "" + outputPath + fileName + ".flac", "-y"]);
+	                        // ffmpeg.stdout.on('data', (data: any) => {
+	                        // 	console.log('flac', data.toString());
+	                        // });
+	                        // ffmpeg.stderr.on('data', (data: any) => {
+	                        // 	console.log(data.toString());
+	                        // });
+	                        ffmpeg.on('exit', function (code) {
+	                            console.log('ffmpeg::flac exited with code: ', code);
+	                        });
+	                        return true;
+	                    })
+	                        .catch(function (err) {
+	                        console.log('error creating DIR for ffmpeg.', err);
+	                        return false;
+	                    })];
+	                case 1: return [2 /*return*/, _a.sent()];
+	            }
+	        });
+	    });
+	}
+	exports.encodeAudioToFLAC = encodeAudioToFLAC;
+	function encodeAudioToMP3(fileName, filePath, outputPath) {
+	    return __awaiter(this, void 0, void 0, function () {
+	        return __generator(this, function (_a) {
+	            return [2 /*return*/, new Promise((function (resolve, reject) {
+	                    fs.ensureDir(outputPath)
+	                        .then(function () {
+	                        var ffmpeg = spawn("ffmpeg", ["-i", "" + filePath, "-codec:a", "libmp3lame", "-b:a", "320k", "" + outputPath + fileName + ".mp3", "-y"]);
+	                        ffmpeg.on('exit', function (code) {
+	                            console.log('ffmpeg::mp3 exited with code: ', code);
+	                            if (0 === parseInt(code)) {
+	                                resolve(true);
+	                            }
+	                            else {
+	                                reject(false);
+	                            }
+	                        });
+	                    })
+	                        .catch(function (err) {
+	                        console.log('error creating DIR for ffmpeg.', err);
+	                        reject(false);
+	                    });
+	                }))];
+	        });
+	    });
+	}
+	exports.encodeAudioToMP3 = encodeAudioToMP3;
 
 
 /***/ }),
 /* 12 */
+/***/ (function(module, exports) {
+
+	module.exports = require("child_process");
+
+/***/ }),
+/* 13 */
+/***/ (function(module, exports) {
+
+	module.exports = require("path");
+
+/***/ }),
+/* 14 */
+/***/ (function(module, exports) {
+
+	module.exports = require("crypto");
+
+/***/ }),
+/* 15 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
-	var __assign = (this && this.__assign) || Object.assign || function(t) {
-	    for (var s, i = 1, n = arguments.length; i < n; i++) {
-	        s = arguments[i];
-	        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-	            t[p] = s[p];
-	    }
-	    return t;
-	};
 	var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
 	    return new (P || (P = Promise))(function (resolve, reject) {
 	        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -527,101 +656,54 @@
 	};
 	Object.defineProperty(exports, "__esModule", { value: true });
 	var store_manager_1 = __webpack_require__(7);
-	var login_manager_1 = __webpack_require__(13);
+	var login_manager_1 = __webpack_require__(16);
+	var fs_manager_1 = __webpack_require__(10);
 	var storeM = store_manager_1.storeManager();
 	var loginM = new login_manager_1.LoginManager();
 	function publicEndpoints(socket) {
 	    var _this = this;
 	    socket.on('0AUTH2_TWITTER::GET_URL', function () {
 	    });
-	    socket.on('GET_SONG_BY_PROP', function (payload) { return __awaiter(_this, void 0, void 0, function () {
-	        var track;
-	        return __generator(this, function (_a) {
-	            switch (_a.label) {
-	                case 0:
-	                    console.log('get song', payload);
-	                    return [4 /*yield*/, storeM.getTrackByProp(payload.prop)];
-	                case 1:
-	                    track = _a.sent();
-	                    if (track) {
-	                        socket.emit("GET_SONG_BY_PROP::CLIENT_" + payload.sessionId, { ok: true, track: track });
-	                    }
-	                    else {
-	                        socket.emit("GET_SONG_BY_PROP::CLIENT_" + payload.sessionId, { ok: false, message: 'Failed to get track by prop.' });
-	                    }
-	                    return [2 /*return*/];
-	            }
-	        });
-	    }); });
-	    socket.on('GET_ALL_MUSIC_DETAILS', function (sessionId) { return __awaiter(_this, void 0, void 0, function () {
-	        var info;
-	        return __generator(this, function (_a) {
-	            switch (_a.label) {
-	                case 0: return [4 /*yield*/, storeM.getAllSoundsInfo()];
-	                case 1:
-	                    info = _a.sent();
-	                    if (info) {
-	                        console.log('get info', info, sessionId);
-	                        socket.emit("GET_ALL_MUSIC_DETAILS::CLIENT_" + sessionId, __assign({ ok: true }, info));
-	                    }
-	                    else {
-	                        socket.emit("GET_ALL_MUSIC_DETAILS::CLIENT_" + sessionId, { ok: false, message: 'Failed to get track by prop.' });
-	                    }
-	                    return [2 /*return*/];
-	            }
-	        });
-	    }); });
-	    socket.on('GET_ALL_SOUND_INFO', function (sessionId) { return __awaiter(_this, void 0, void 0, function () {
+	    socket.on('GET_ALL_SOUNDS_DETAILS', function (sessionId, callback) { return __awaiter(_this, void 0, void 0, function () {
 	        var info;
 	        return __generator(this, function (_a) {
 	            switch (_a.label) {
 	                case 0:
-	                    console.log('getting', sessionId);
-	                    return [4 /*yield*/, storeM.getAllSoundsInfo()];
+	                    console.log('socket ID from get?', socket.id);
+	                    return [4 /*yield*/, storeM.getAllSoundsDetails()];
 	                case 1:
 	                    info = _a.sent();
-	                    if (info) {
-	                        console.log('get info', info, sessionId);
-	                        socket.emit("GET_ALL_SOUND_INFO::CLIENT_" + sessionId, { ok: true, payload: info });
-	                    }
-	                    else {
-	                        socket.emit("GET_ALL_SOUND_INFO::CLIENT_" + sessionId, { ok: false, message: 'Failed to get track by prop.' });
-	                    }
+	                    callback({ body: info, ok: true });
 	                    return [2 /*return*/];
 	            }
 	        });
 	    }); });
-	    socket.on('GET_SONG_DATA', function (payload) { return __awaiter(_this, void 0, void 0, function () {
-	        var file;
-	        return __generator(this, function (_a) {
-	            switch (_a.label) {
-	                case 0: return [4 /*yield*/, storeM.getWholeFile(payload.prop, payload.type)];
-	                case 1:
-	                    file = _a.sent();
-	                    if (file) {
-	                        socket.emit("GET_SONG_DATA::CLIENT_" + payload.sessionId, { ok: true, file: file });
-	                    }
-	                    else {
-	                        socket.emit("GET_SONG_DATA::CLIENT_" + payload.sessionId, { ok: false, message: 'Failed to get track by prop.' });
-	                    }
-	                    return [2 /*return*/];
-	            }
-	        });
-	    }); });
-	    socket.on('LOGIN', function (payload) { return __awaiter(_this, void 0, void 0, function () {
+	    socket.on('LOGIN', function (payload, callback) { return __awaiter(_this, void 0, void 0, function () {
 	        var rSResponse;
 	        return __generator(this, function (_a) {
 	            switch (_a.label) {
 	                case 0: return [4 /*yield*/, loginM.signInUser(payload.credentials, payload.sessionId)];
 	                case 1:
 	                    rSResponse = _a.sent();
-	                    console.log('jwt response', rSResponse);
-	                    if (rSResponse.ok) {
-	                        socket.emit("LOGIN::CLIENT_" + payload.sessionId, rSResponse);
-	                    }
-	                    else {
-	                        socket.emit("LOGIN::CLIENT_" + payload.sessionId, rSResponse);
-	                    }
+	                    callback(rSResponse);
+	                    return [2 /*return*/];
+	            }
+	        });
+	    }); });
+	    socket.on('GET_SOUND_DATA', function (payload, callback) { return __awaiter(_this, void 0, void 0, function () {
+	        var document, data;
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
+	                case 0: return [4 /*yield*/, storeM.getSoundDetails({ _id: payload.sound_id })
+	                        .catch(function (err) { console.log('coudl not find document', err); })];
+	                case 1:
+	                    document = _a.sent();
+	                    return [4 /*yield*/, fs_manager_1.openFile(payload.sound_id)
+	                            .catch(function (err) { console.log('file read error', err); })];
+	                case 2:
+	                    data = _a.sent();
+	                    console.log('DATA \n', data.toString(), document);
+	                    callback({ ok: true, data: data });
 	                    return [2 /*return*/];
 	            }
 	        });
@@ -631,7 +713,7 @@
 
 
 /***/ }),
-/* 13 */
+/* 16 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -671,11 +753,11 @@
 	    }
 	};
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var user_model_1 = __webpack_require__(14);
-	var _local_credentials_1 = __webpack_require__(15);
+	var user_model_1 = __webpack_require__(17);
+	var _local_credentials_1 = __webpack_require__(18);
 	var mongoose = __webpack_require__(6);
-	var bcrypt = __webpack_require__(16);
-	var JSONWebToken = __webpack_require__(17);
+	var bcrypt = __webpack_require__(19);
+	var JSONWebToken = __webpack_require__(20);
 	var LoginManager = /** @class */ (function () {
 	    function LoginManager() {
 	        this.User = mongoose.model('User', user_model_1.UserModel);
@@ -697,7 +779,6 @@
 	                    case 0: return [4 /*yield*/, this.User.findOne({ username: username })];
 	                    case 1:
 	                        user = _a.sent();
-	                        console.log('user', user);
 	                        if (user) {
 	                            return [2 /*return*/, bcrypt.compareSync(password, user.password)];
 	                        }
@@ -709,7 +790,8 @@
 	    LoginManager.prototype.returnSessionToken = function (body) {
 	        return JSONWebToken.sign({
 	            sessionId: body.sessionId,
-	            user: body.username
+	            user: body.username,
+	            uid: body.uid
 	        }, _local_credentials_1.SECRET);
 	    };
 	    LoginManager.prototype.signInUser = function (credentials, sessionId) {
@@ -728,15 +810,13 @@
 	                                    case 1:
 	                                        user = _a.sent();
 	                                        if (user) {
-	                                            return [2 /*return*/, { ok: true, payload: { jwt: this.returnSessionToken({ sessionId: sessionId, username: user.username }) } }];
+	                                            return [2 /*return*/, { ok: true, payload: { jwt: this.returnSessionToken({ sessionId: sessionId, username: user.username, uid: user._id }) } }];
 	                                        }
 	                                        else {
 	                                            return [2 /*return*/, { ok: false, message: 'User not found.' }];
 	                                        }
 	                                        return [3 /*break*/, 3];
-	                                    case 2:
-	                                        console.log('logged in failed', credentials);
-	                                        return [2 /*return*/, { ok: false, message: 'Credentials did not match.' }];
+	                                    case 2: return [2 /*return*/, { ok: false, message: 'Credentials did not match.' }];
 	                                    case 3: return [2 /*return*/];
 	                                }
 	                            });
@@ -772,7 +852,7 @@
 
 
 /***/ }),
-/* 14 */
+/* 17 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -791,7 +871,7 @@
 
 
 /***/ }),
-/* 15 */
+/* 18 */
 /***/ (function(module, exports) {
 
 	"use strict";
@@ -804,19 +884,19 @@
 
 
 /***/ }),
-/* 16 */
+/* 19 */
 /***/ (function(module, exports) {
 
 	module.exports = require("bcryptjs");
 
 /***/ }),
-/* 17 */
+/* 20 */
 /***/ (function(module, exports) {
 
 	module.exports = require("jsonwebtoken");
 
 /***/ }),
-/* 18 */
+/* 21 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -856,8 +936,9 @@
 	    }
 	};
 	Object.defineProperty(exports, "__esModule", { value: true });
-	var login_manager_1 = __webpack_require__(13);
+	var login_manager_1 = __webpack_require__(16);
 	var store_manager_1 = __webpack_require__(7);
+	var transcoding_service_1 = __webpack_require__(9);
 	var loginM = new login_manager_1.LoginManager();
 	var storeM = store_manager_1.storeManager();
 	function sessionEndpoints(socket) {
@@ -900,25 +981,21 @@
 	            return [2 /*return*/];
 	        });
 	    }); });
-	    socket.on('REGISTER_NEW_SOUND', function (payload) { return __awaiter(_this, void 0, void 0, function () {
-	        var JWT, rSResponse;
+	    socket.on('REGISTER_NEW_SOUND', function (payload, callback) { return __awaiter(_this, void 0, void 0, function () {
+	        var jwtResponse, rSResponse;
 	        return __generator(this, function (_a) {
 	            switch (_a.label) {
-	                case 0:
-	                    console.log('Register New Sound\n', payload);
-	                    return [4 /*yield*/, loginM.jwtVerify(payload.jwt)];
+	                case 0: return [4 /*yield*/, loginM.jwtVerify(payload.jwt)];
 	                case 1:
-	                    JWT = _a.sent();
-	                    console.log('JWT \n', JWT);
-	                    if (!JWT.ok) return [3 /*break*/, 3];
-	                    return [4 /*yield*/, storeM.registerNewSound(payload.formData)];
+	                    jwtResponse = _a.sent();
+	                    if (!jwtResponse.ok) return [3 /*break*/, 3];
+	                    return [4 /*yield*/, storeM.registerNewSound(payload.formData, jwtResponse.payload.uid)];
 	                case 2:
 	                    rSResponse = _a.sent();
-	                    console.log('rsResponse', rSResponse);
-	                    socket.emit("SESSION_AUTH::CLIENT_" + JWT.decoded.sessionId, rSResponse);
+	                    callback(rSResponse);
 	                    return [3 /*break*/, 4];
 	                case 3:
-	                    socket.emit("SESSION_AUTH::CLIENT_" + payload.sessionId, {
+	                    callback({
 	                        ok: false,
 	                        message: 'JsonWebToken not valid.',
 	                    });
@@ -927,47 +1004,47 @@
 	            }
 	        });
 	    }); });
-	    socket.on('SESSION::UPLOAD_TRACK_FILE', function (payload) { return __awaiter(_this, void 0, void 0, function () {
-	        var JWT, _a, trackId, type, encoding, file, uploadResult;
-	        return __generator(this, function (_b) {
-	            switch (_b.label) {
+	    socket.on('SESSION::UPDATE_SOUND_DETAIL', function (payload, callback) { return __awaiter(_this, void 0, void 0, function () {
+	        var jwtResponse, rSResponse;
+	        return __generator(this, function (_a) {
+	            switch (_a.label) {
 	                case 0: return [4 /*yield*/, loginM.jwtVerify(payload.jwt)];
 	                case 1:
-	                    JWT = _b.sent();
-	                    if (!(JWT.ok && JWT.payload.sessionId === payload.sessionId)) return [3 /*break*/, 3];
-	                    _a = payload.formData, trackId = _a.trackId, type = _a.type, encoding = _a.encoding, file = _a.file;
-	                    return [4 /*yield*/, storeM.uploadTrackFile(trackId, type, encoding, file)
-	                            .catch(function (err) { return console.log('err upload', err); })];
+	                    jwtResponse = _a.sent();
+	                    if (!jwtResponse.ok) return [3 /*break*/, 3];
+	                    return [4 /*yield*/, storeM.updateSoundByProp(payload.sound_id, payload.prop)];
 	                case 2:
-	                    uploadResult = _b.sent();
-	                    socket.emit("SESSION::UPLOAD_TRACK_FILE::CLIENT_" + JWT.payload.sessionId, uploadResult);
+	                    rSResponse = _a.sent();
+	                    callback(rSResponse);
 	                    return [3 /*break*/, 4];
 	                case 3:
-	                    socket.emit("SESSION::UPLOAD_TRACK_FILE::CLIENT_" + payload.sessionId, {
-	                        payload: payload.formData,
+	                    callback({
 	                        ok: false,
-	                        message: 'JWT is invalid.',
+	                        message: 'JsonWebToken not valid.',
 	                    });
-	                    _b.label = 4;
+	                    _a.label = 4;
 	                case 4: return [2 /*return*/];
 	            }
 	        });
 	    }); });
-	    socket.on('SESSION::UPLOAD_VIDEO', function (jwt, sessionId) { return __awaiter(_this, void 0, void 0, function () {
+	    socket.on('SESSION::FILE_UPLOAD', function (payload, ack) { return __awaiter(_this, void 0, void 0, function () {
+	        var jwtResponse, response;
 	        return __generator(this, function (_a) {
 	            switch (_a.label) {
-	                case 0: return [4 /*yield*/, loginM.jwtVerify(jwt)];
+	                case 0: return [4 /*yield*/, loginM.jwtVerify(payload.jwt)];
 	                case 1:
-	                    if (_a.sent()) {
-	                        socket.emit("SESSION_AUTH::CLIENT_" + sessionId, { ok: true });
-	                    }
-	                    else {
-	                        socket.emit("SESSION_AUTH::CLIENT_" + sessionId, {
-	                            ok: false,
-	                            message: 'JWT is invalid.',
-	                        });
-	                    }
-	                    return [2 /*return*/];
+	                    jwtResponse = _a.sent();
+	                    if (!jwtResponse.ok) return [3 /*break*/, 3];
+	                    return [4 /*yield*/, transcoding_service_1.saveSound(jwtResponse.payload.uid, payload.song_id, payload.data)
+	                            .catch(function (err) { return console.log('Error: Saving sound to system.', err); })];
+	                case 2:
+	                    response = _a.sent();
+	                    ack(response);
+	                    return [3 /*break*/, 4];
+	                case 3:
+	                    ack({ ok: false, message: 'JWT not valid. Please log in again.' });
+	                    _a.label = 4;
+	                case 4: return [2 /*return*/];
 	            }
 	        });
 	    }); });
@@ -976,13 +1053,7 @@
 
 
 /***/ }),
-/* 19 */
-/***/ (function(module, exports) {
-
-	module.exports = require("fs");
-
-/***/ }),
-/* 20 */
+/* 22 */
 /***/ (function(module, exports) {
 
 	module.exports = require("socket.io");
