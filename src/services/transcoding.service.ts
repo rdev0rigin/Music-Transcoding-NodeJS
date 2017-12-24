@@ -18,7 +18,6 @@ export async function saveSound(userID: string, soundID: string, file: any): Pro
 		const path: string = `${process.env.PWD}/dcm-file-store/${soundID}`;
 		const MIME: string = HEADER_TO_MIME(header);
 		const outPath = `${process.env.PWD}/dcm-file-store/${soundID}`;
-
 		const saveResult = await
 			saveToDir(
 				`${path}/source`,
