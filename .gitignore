@@ -15,3 +15,4 @@ key.pem
 _local.credentials.ts
 dcm-file-store/*
 data/
+db-user.js

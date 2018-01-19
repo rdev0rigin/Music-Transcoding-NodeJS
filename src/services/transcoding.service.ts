@@ -4,17 +4,16 @@ import {storeManager, StoreManager} from '../managers/store.manager';
 import * as fs from 'fs-extra';
 import * as Path from 'path';
 import {RSocketResponse} from '../models/response-socket.model';
+import {StoreResponse} from '../../dcomp.type';
 import crypto = require('crypto');
 
-export async function saveSound(userID: string, soundID: string, file: any): Promise<RSocketResponse | {} > {
+export async function uploadSound(userID: string, soundID: string, file: any): Promise<RSocketResponse | {} > {
 	return new Promise(async (resolve, reject) => {
 		let header = '';
 		const store: StoreManager = storeManager();
-
 		for (let bit of file.subarray(0, 4)) {
 			header += bit.toString(16);
 		}
-
 		const path: string = `${process.env.PWD}/dcm-file-store/${soundID}`;
 		const MIME: string = HEADER_TO_MIME(header);
 		const outPath = `${process.env.PWD}/dcm-file-store/${soundID}`;
@@ -26,19 +25,17 @@ export async function saveSound(userID: string, soundID: string, file: any): Pro
 			);
 
 		if (saveResult.ok) {
-			const flacSaved = await
-				encodeAudioToFLAC(
-					soundID,
-					`${saveResult.path}/${saveResult.fileName}`,
-					`${outPath}/flac/`
-				);
-			const mp3Encoded = await
-				encodeAudioToMP3(
-					soundID,
-					`${saveResult.path}/${saveResult.fileName}`,
-					`${outPath}/mp3/`
-				);
-			console.log('hit saveSound after mp3', mp3Encoded);
+			const flacSaved = await encodeAudioToFLAC(
+				soundID,
+				`${saveResult.path}/${saveResult.fileName}`,
+				`${outPath}/flac/`
+			);
+			const mp3Encoded = await encodeAudioToMP3(
+				soundID,
+				`${saveResult.path}/${saveResult.fileName}`,
+				`${outPath}/mp3/`
+			);
+			console.log('hit uploadSound after mp3', mp3Encoded);
 			const mp3File: Buffer = await
 				fs.readFile(
 					Path.join(process.env.PWD,
@@ -47,14 +44,13 @@ export async function saveSound(userID: string, soundID: string, file: any): Pro
 						`mp3`,
 						`${soundID}.mp3`
 					));
-
-			const fileHash = crypto.createHash('sha256')
+			const fileHash = crypto
+				.createHash('sha256')
 				.update(file);
-
-			const mp3Hash = crypto.createHash('sha256')
+			const mp3Hash = crypto
+				.createHash('sha256')
 				.update(mp3File);
-			const doc: Document = await
-				store.updateSoundByProp(
+			const doc: StoreResponse = await store.updateSoundByProp(
 					soundID,
 					{
 						sourceHash: fileHash.digest('hex'),

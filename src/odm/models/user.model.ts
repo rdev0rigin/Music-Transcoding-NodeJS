@@ -1,8 +1,8 @@
-var mongoose = require('mongoose');
-var Schema = mongoose.Schema;
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
 export const UserModel = new Schema({
-	username: {
+	userName: {
 		type: String,
 		unique: true,
 		index: true,
@@ -10,4 +10,3 @@ export const UserModel = new Schema({
 	password: String,
 	email: String,
 });
-

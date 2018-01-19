@@ -1,5 +1,3 @@
-# Backend Socket Seed
+# Music Transcoding Backend
 
-A backend starter module with Socket.io, Express.js and  Node.js.
-
-git archive --format=tar --remote=git@gitlab.com:rdev163/backend-socket-seed.git master | tar -xf -
+Made to experiment with transcoding and crypto things.

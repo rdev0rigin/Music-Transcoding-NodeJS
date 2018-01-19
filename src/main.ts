@@ -5,5 +5,3 @@ function boot() {
 }
 
 boot();
-
-

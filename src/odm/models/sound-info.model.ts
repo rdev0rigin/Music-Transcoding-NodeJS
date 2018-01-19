@@ -1,17 +1,17 @@
 import * as mongoose from 'mongoose';
 
-var Schema = mongoose.Schema;
+const Schema = mongoose.Schema;
 
-export interface SoundDetailsModel {
+export interface SoundMetaModel {
 	id?: string;
-	soundURL: string;
+	soundURL?: string;
 	videoURL?: string;
 	imgURL?: string;
-	title: string;
+	title?: string;
 	description: string;
 }
 
-export const SoundDetailsSchema = new Schema({
+export const SoundMetaSchema = new Schema({
 	id: String,
 	soundURL: String,
 	videoURL: String,
@@ -19,3 +19,5 @@ export const SoundDetailsSchema = new Schema({
 	title: String,
 	description: String
 });
+
+
