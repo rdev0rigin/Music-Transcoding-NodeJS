@@ -23,9 +23,6 @@ export function dbStart() {
 		sslCert: SSL.cert
 	});
 	mongoose.Promise = require('bluebird');
-	const collection = new mongoose.Collection('dcomp-content-store', db, {
-
-	});
 	db.on('error',(evt) => console.log('connection error', evt));
 	db.once('open', (evt) => {
 		console.log('Db Connected!');

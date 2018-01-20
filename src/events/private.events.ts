@@ -4,7 +4,6 @@ import {SoundMetaModel} from '../odm/models/sound-info.model';
 import {uploadSound} from '../services/transcoding.service';
 import Socket = SocketIO.Socket;
 import {RSocketResponse} from '../models/response-socket.model';
-import {JWT} from '../odm/models/json-web-token.model';
 
 const loginM = new LoginManager();
 const storeM = storeManager();
@@ -30,7 +29,7 @@ export function privateEvents(socket: Socket) {
 	});
 
 	socket.on('PRIVATE::NEW_SOUND_META', async (payload: {jwt: string, sessionId: string, soundMeta: SoundMetaModel}, callback: (response: any) => void) => {
-		console.log('new sound Meta', payload);
+		// console.log('new sound Meta', payload);
 		const jwtResponse: any = await loginM.jwtVerify(payload.jwt, payload.sessionId);
 		if (jwtResponse.ok) {
 			const rSResponse = await storeM.registerNewSound(payload.soundMeta, jwtResponse.payload.uid);
@@ -57,9 +56,11 @@ export function privateEvents(socket: Socket) {
 	});
 
 	socket.on('PRIVATE::FILE_UPLOAD', async (payload: any, ack: (responseTransport: any) => void) => {
+		console.log('File upload called', payload);
 		const jwtResponse = await loginM.jwtVerify(payload.jwt, payload.sessionId);
+		console.log('jwt', jwtResponse);
 		if (jwtResponse.ok){
-			const response = await uploadSound(jwtResponse.payload.uid, payload.song_id, payload.data)
+			const response = await uploadSound(jwtResponse.payload.uid, payload.sound_id, payload.data)
 				.catch(err => console.log('Error: Saving sound to system.', err));
 			ack(response);
 		} else {
@@ -72,7 +73,15 @@ export function privateEvents(socket: Socket) {
 		if (jwtResponse.ok) {
 			const response = storeM.deleteSoundById(payload.id);
 			if (response) {
-				callback({ok: true, payload: response});
+				callback({
+					ok: true,
+					payload: {
+						response: {
+							...response,
+							sound_id: payload.id
+						},
+					}
+				});
 			} else {
 				callback({ok: false, message: 'Error: Remove operation failed.'})
 			}

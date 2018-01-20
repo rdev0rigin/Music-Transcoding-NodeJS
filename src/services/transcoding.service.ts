@@ -8,6 +8,7 @@ import {StoreResponse} from '../../dcomp.type';
 import crypto = require('crypto');
 
 export async function uploadSound(userID: string, soundID: string, file: any): Promise<RSocketResponse | {} > {
+	console.log('user ID', userID, file);
 	return new Promise(async (resolve, reject) => {
 		let header = '';
 		const store: StoreManager = storeManager();

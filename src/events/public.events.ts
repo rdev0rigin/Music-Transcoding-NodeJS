@@ -13,7 +13,7 @@ export function publicEvents(socket: any) {
 	socket.on(
 		'GET_SOUNDS_META',
 		async (sessionId: string, callback: any) => {
-			const info = await storeM.getAllSoundsDetails();
+			const info = await storeM.getAllSoundsMeta();
 			console.log('details requested', info);
 			if (info) {
 				callback({payload: info, ok: true, event: 'GET_SOUNDS_META'});
